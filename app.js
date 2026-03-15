@@ -81,20 +81,91 @@ function navigate(viewId) {
 }
 
 // On Load Check if logged in (Simulation)
+function saveState() {
+    localStorage.setItem('up_usersDB', JSON.stringify(usersDB));
+    if (currentUser) {
+        localStorage.setItem('up_currentUser', JSON.stringify(currentUser));
+        const activeSubView = document.querySelector('.subview.active');
+        if (activeSubView) {
+            const viewId = activeSubView.id.replace('subview-', '');
+            localStorage.setItem('up_currentView', viewId);
+        }
+    } else {
+        localStorage.removeItem('up_currentUser');
+        localStorage.removeItem('up_currentView');
+    }
+
+    if (currentUser) {
+        localStorage.setItem('up_simulatedDeposit', simulatedDeposit);
+        localStorage.setItem('up_daysPaid', daysPaid);
+        localStorage.setItem('up_realDaysElapsed', realDaysElapsed);
+    }
+}
+setInterval(saveState, 1000);
+
 document.addEventListener('DOMContentLoaded', () => {
     // Check theme
     const savedTheme = localStorage.getItem('up-theme') || 'dark';
     setTheme(savedTheme);
 
-    // Ensure we start at login
-    navigate('login');
+    const savedDB = localStorage.getItem('up_usersDB');
+    if (savedDB) usersDB = JSON.parse(savedDB);
+
+    const savedUser = localStorage.getItem('up_currentUser');
+    if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        const matchedUser = usersDB.find(u => u.username === currentUser.username);
+        if (matchedUser) {
+            currentUserBalance = matchedUser.balance;
+            currentUserInvested = matchedUser.invested;
+            currentUserEarnings = matchedUser.earnings;
+            savedWalletAddress = matchedUser.wallet;
+
+            simulatedDeposit = parseFloat(localStorage.getItem('up_simulatedDeposit')) || 0;
+            daysPaid = parseInt(localStorage.getItem('up_daysPaid')) || 0;
+            realDaysElapsed = parseInt(localStorage.getItem('up_realDaysElapsed')) || 0;
+
+            if (currentUser.isAdmin) {
+                document.getElementById('admin-menu-item').style.display = 'flex';
+                document.querySelector('#admin-transactions-table tbody').innerHTML = '';
+                usersDB.forEach(u => {
+                    if (u.pendingDeposits && u.pendingDeposits.length > 0) {
+                        u.pendingDeposits.forEach(pending => {
+                            if (pending.status === 'pending') {
+                                addPendingAdminTransactionSync(u.username, 'Depósito', pending.amount, pending.id);
+                            }
+                        });
+                    }
+                });
+            }
+
+            const displayFirstname = matchedUser.firstname || matchedUser.username;
+            document.getElementById('welcome-username').innerText = displayFirstname;
+            document.getElementById('tree-username').innerText = displayFirstname;
+
+            updateDashboardStats();
+            updateWithdrawalStatus();
+
+            navigate('dashboard-layout');
+
+            const savedView = localStorage.getItem('up_currentView') || 'dashboard';
+            switchDashboardView(savedView);
+
+            setTimeout(initChart, 300);
+        } else {
+            navigate('login');
+        }
+    } else {
+        // Ensure we start at login
+        navigate('login');
+    }
 });
 
 
 // --- Authentication Flow ---
 
 // Simulated DB for Users
-const usersDB = [
+let usersDB = [
     {
         username: "Josue10",
         password: "Josue1020.",

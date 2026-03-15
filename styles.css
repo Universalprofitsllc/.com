@@ -769,7 +769,13 @@ hr.divider {
         border-bottom: 3px solid var(--gold-primary);
     }
     .sidebar-footer {
-        display: none; /* Hide exit or put it inside nav */
+        margin-left: 10px;
+        padding-right: 15px;
+    }
+    .sidebar-footer .nav-item {
+        color: var(--danger);
+        padding: 10px;
+        font-weight: bold;
     }
     .main-content {
         margin-left: 0;

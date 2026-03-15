@@ -156,7 +156,7 @@
         <section id="view-dashboard-layout" class="view dashboard-layout">
             <!-- Sidebar -->
             <aside class="sidebar">
-                <div class="sidebar-header">
+                <div class="sidebar-header" onclick="switchDashboardView('dashboard')" style="cursor: pointer;">
                     <img src="logos/logo_luxury_crest_1773454223151.png" alt="Universal Profits Logo"
                         class="sidebar-logo">
                     <h2 class="brand-name-small">U<span class="gold">P</span></h2>
@@ -256,6 +256,10 @@
                                 <p>1.80% / Día</p>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="panel mt-4" style="text-align: center;">
+                        <button class="btn btn-danger" onclick="logout()" style="width: 100%; max-width: 300px; font-weight: bold; background-color: rgba(255, 77, 79, 0.1);"><i class="fas fa-sign-out-alt"></i> Salir de mi Cuenta</button>
                     </div>
                 </div>
 
