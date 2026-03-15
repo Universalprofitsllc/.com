@@ -731,6 +731,10 @@ hr.divider {
     background: var(--gold-primary);
 }
 
+.mobile-logout-btn {
+    display: none;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .dashboard-layout {
@@ -770,6 +774,9 @@ hr.divider {
     }
     .sidebar-footer {
         display: none; /* Hide exit or put it inside nav */
+    }
+    .mobile-logout-btn {
+        display: block;
     }
     .main-content {
         margin-left: 0;

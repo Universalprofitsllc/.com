@@ -80,121 +80,167 @@ function navigate(viewId) {
     document.getElementById(`view-${viewId}`).classList.add('active');
 }
 
-// On Load Check if logged in (Simulation)
-function saveState() {
-    localStorage.setItem('up_usersDB', JSON.stringify(usersDB));
-    if (currentUser) {
-        localStorage.setItem('up_currentUser', JSON.stringify(currentUser));
-        const activeSubView = document.querySelector('.subview.active');
-        if (activeSubView) {
-            const viewId = activeSubView.id.replace('subview-', '');
-            localStorage.setItem('up_currentView', viewId);
-        }
-    } else {
-        localStorage.removeItem('up_currentUser');
-        localStorage.removeItem('up_currentView');
-    }
+// --- Firebase Config & Global State ---
+const firebaseConfig = {
+    apiKey: "AIzaSyBHkYblplu7sOYXiTz6Jvschvc8ptvvHp0",
+    authDomain: "universal-profits-llc.firebaseapp.com",
+    projectId: "universal-profits-llc",
+    storageBucket: "universal-profits-llc.firebasestorage.app",
+    messagingSenderId: "11955098488",
+    appId: "1:11955098488:web:20f7b6ad7cbcfa105b6e8d",
+    measurementId: "G-BLD41MEYGP"
+};
 
-    if (currentUser) {
-        localStorage.setItem('up_simulatedDeposit', simulatedDeposit);
-        localStorage.setItem('up_daysPaid', daysPaid);
-        localStorage.setItem('up_realDaysElapsed', realDaysElapsed);
-    }
-}
-setInterval(saveState, 1000);
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
-document.addEventListener('DOMContentLoaded', () => {
-    // Check theme
-    const savedTheme = localStorage.getItem('up-theme') || 'dark';
-    setTheme(savedTheme);
+let usersDB = [];
+let initialLoadDone = false;
 
-    const savedDB = localStorage.getItem('up_usersDB');
-    if (savedDB) usersDB = JSON.parse(savedDB);
+// Real-time listener para guardar en la nube
+db.collection("users").onSnapshot((snapshot) => {
+    usersDB = [];
+    snapshot.forEach((doc) => {
+        usersDB.push(doc.data());
+    });
 
-    const savedUser = localStorage.getItem('up_currentUser');
-    if (savedUser) {
-        currentUser = JSON.parse(savedUser);
+    // Sincronizar UI si ya estamos logueados
+    if (currentUser && initialLoadDone) {
         const matchedUser = usersDB.find(u => u.username === currentUser.username);
         if (matchedUser) {
             currentUserBalance = matchedUser.balance;
             currentUserInvested = matchedUser.invested;
             currentUserEarnings = matchedUser.earnings;
-            savedWalletAddress = matchedUser.wallet;
-
-            simulatedDeposit = parseFloat(localStorage.getItem('up_simulatedDeposit')) || 0;
-            daysPaid = parseInt(localStorage.getItem('up_daysPaid')) || 0;
-            realDaysElapsed = parseInt(localStorage.getItem('up_realDaysElapsed')) || 0;
-
-            if (currentUser.isAdmin) {
-                document.getElementById('admin-menu-item').style.display = 'flex';
-                document.querySelector('#admin-transactions-table tbody').innerHTML = '';
-                usersDB.forEach(u => {
-                    if (u.pendingDeposits && u.pendingDeposits.length > 0) {
-                        u.pendingDeposits.forEach(pending => {
-                            if (pending.status === 'pending') {
-                                addPendingAdminTransactionSync(u.username, 'Depósito', pending.amount, pending.id);
-                            }
-                        });
-                    }
-                });
-            }
-
-            const displayFirstname = matchedUser.firstname || matchedUser.username;
-            document.getElementById('welcome-username').innerText = displayFirstname;
-            document.getElementById('tree-username').innerText = displayFirstname;
-
+            savedWalletAddress = matchedUser.wallet || "";
             updateDashboardStats();
-            updateWithdrawalStatus();
-
-            navigate('dashboard-layout');
-
-            const savedView = localStorage.getItem('up_currentView') || 'dashboard';
-            switchDashboardView(savedView);
-
-            setTimeout(initChart, 300);
-        } else {
-            navigate('login');
+            if (currentUser.isAdmin) renderAdminUserList();
         }
-    } else {
-        // Ensure we start at login
-        navigate('login');
+    } else if (initialLoadDone && currentUser && currentUser.isAdmin) {
+        renderAdminUserList();
     }
 });
 
+async function saveUserToDB(userObj) {
+    try {
+        await db.collection("users").doc(userObj.username).set(userObj);
+    } catch (e) { console.error(e); }
+}
+
+async function deleteUserFromDB(username) {
+    try {
+        await db.collection("users").doc(username).delete();
+    } catch (e) { console.error(e); }
+}
+
+// Sincroniza variables locales del usuario actual a la BD
+function syncCurrentUserLocalVarsToDB() {
+    if (!currentUser) return;
+    const matchedUser = window.usersDB?.find(u => u.username === currentUser.username);
+    if (matchedUser) {
+        matchedUser.balance = currentUserBalance;
+        matchedUser.invested = currentUserInvested;
+        matchedUser.earnings = currentUserEarnings;
+        matchedUser.wallet = savedWalletAddress;
+
+        if (!matchedUser.pendingDeposits) matchedUser.pendingDeposits = [];
+
+        saveUserToDB(matchedUser);
+    }
+}
+
+// On Load Check if logged in & Fetch Firebase
+function saveLocalDashboardState() {
+    if (currentUser) {
+        localStorage.setItem('up_currentUser', JSON.stringify(currentUser));
+        const activeSubView = document.querySelector('.subview.active');
+        if (activeSubView) {
+            localStorage.setItem('up_currentView', activeSubView.id.replace('subview-', ''));
+        }
+        localStorage.setItem('up_simulatedDeposit', simulatedDeposit);
+        localStorage.setItem('up_daysPaid', daysPaid);
+        localStorage.setItem('up_realDaysElapsed', realDaysElapsed);
+    } else {
+        localStorage.removeItem('up_currentUser');
+        localStorage.removeItem('up_currentView');
+    }
+}
+setInterval(saveLocalDashboardState, 1000);
+
+document.addEventListener('DOMContentLoaded', () => {
+    const savedTheme = localStorage.getItem('up-theme') || 'dark';
+    setTheme(savedTheme);
+
+    // Initial load will be handled by Firebase DB first fetch
+    db.collection("users").get().then((snapshot) => {
+        usersDB = [];
+        snapshot.forEach(doc => usersDB.push(doc.data()));
+
+        // Seed default admins si la base de datos está vacía (solo primera vez)
+        if (usersDB.length === 0) {
+            const defaultUsers = [
+                { username: "Josue10", password: "Josue1020.", isAdmin: true, firstname: "Josue", lastname: "", balance: 0, invested: 0, earnings: 0, wallet: "", recoveryWords: [], referrer: "", pendingDeposits: [] },
+                { username: "Gribel", password: "Josue1020.", isAdmin: false, firstname: "Gribel", lastname: "", balance: 0, invested: 0, earnings: 0, wallet: "", recoveryWords: ["sol", "luna", "rio", "oro", "plata"], referrer: "Josue10", pendingDeposits: [] }
+            ];
+            defaultUsers.forEach(u => {
+                usersDB.push(u);
+                saveUserToDB(u);
+            });
+        }
+
+        const savedUser = localStorage.getItem('up_currentUser');
+        if (savedUser) {
+            currentUser = JSON.parse(savedUser);
+            const matchedUser = usersDB.find(u => u.username === currentUser.username);
+
+            if (matchedUser) {
+                currentUserBalance = matchedUser.balance;
+                currentUserInvested = matchedUser.invested;
+                currentUserEarnings = matchedUser.earnings;
+                savedWalletAddress = matchedUser.wallet;
+                simulatedDeposit = parseFloat(localStorage.getItem('up_simulatedDeposit')) || 0;
+                daysPaid = parseInt(localStorage.getItem('up_daysPaid')) || 0;
+                realDaysElapsed = parseInt(localStorage.getItem('up_realDaysElapsed')) || 0;
+
+                if (currentUser.isAdmin) {
+                    document.getElementById('admin-menu-item').style.display = 'flex';
+                    document.querySelector('#admin-transactions-table tbody').innerHTML = '';
+                    usersDB.forEach(u => {
+                        if (u.pendingDeposits && u.pendingDeposits.length > 0) {
+                            u.pendingDeposits.forEach(pending => {
+                                if (pending.status === 'pending') {
+                                    addPendingAdminTransactionSync(u.username, 'Depósito', pending.amount, pending.id);
+                                }
+                            });
+                        }
+                    });
+                }
+
+                const displayFirstname = matchedUser.firstname || matchedUser.username;
+                document.getElementById('welcome-username').innerText = displayFirstname;
+                document.getElementById('tree-username').innerText = displayFirstname;
+
+                updateDashboardStats();
+                updateWithdrawalStatus();
+                navigate('dashboard-layout');
+
+                const savedView = localStorage.getItem('up_currentView') || 'dashboard';
+                switchDashboardView(savedView);
+                setTimeout(initChart, 300);
+            } else {
+                navigate('login');
+            }
+        } else {
+            navigate('login');
+        }
+        initialLoadDone = true;
+    }).catch(err => {
+        console.error("Firebase connection error: ", err);
+        navigate('login');
+    });
+});
 
 // --- Authentication Flow ---
-
-// Simulated DB for Users
-let usersDB = [
-    {
-        username: "Josue10",
-        password: "Josue1020.",
-        isAdmin: true,
-        firstname: "Josue",
-        lastname: "",
-        balance: 0,
-        invested: 0,
-        earnings: 0,
-        wallet: "",
-        recoveryWords: [],
-        referrer: "",
-        pendingDeposits: []
-    },
-    {
-        username: "Gribel",
-        password: "Josue1020.",
-        isAdmin: false,
-        firstname: "Gribel",
-        lastname: "",
-        balance: 0,
-        invested: 0,
-        earnings: 0,
-        wallet: "",
-        recoveryWords: ["sol", "luna", "rio", "oro", "plata"],
-        referrer: "Josue10",
-        pendingDeposits: []
-    }
-];
 
 const RECOVERY_DICTIONARY = ["sol", "luna", "rio", "montaña", "mar", "estrella", "nube", "viento", "fuego", "tierra", "oro", "plata", "bronce", "cielo", "valle", "bosque", "hoja", "raiz", "fruto", "semilla"];
 
@@ -241,6 +287,7 @@ function handleRegister(e) {
         pendingDeposits: []
     };
     usersDB.push(newUser);
+    saveUserToDB(newUser);
 
     // Notificar solo al referente directo
     if (newUser.referrer) {
@@ -527,6 +574,7 @@ function simulateDailyPayment() {
         daysPaid++;
     }
 
+    syncCurrentUserLocalVarsToDB();
     updateDashboardStats();
     updateChart('Día ' + daysPaid, currentUserBalance);
     updateWithdrawalStatus();
@@ -665,6 +713,7 @@ function handleResetPassword(e) {
     const matchedUser = usersDB.find(u => u.username === pendingResetUsername);
     if (matchedUser) {
         matchedUser.password = pass;
+        saveUserToDB(matchedUser);
         alert('Contraseña actualizada correctamente.');
         navigate('login');
         document.getElementById('form-forgot').style.display = 'block';
@@ -887,6 +936,8 @@ function handleWithdraw(e) {
     // Simulate deduction (and 5% fee logic simply reducing balance)
     if (withdrawAmount > 0 && withdrawAmount <= currentUserBalance) {
         currentUserBalance -= withdrawAmount;
+
+        syncCurrentUserLocalVarsToDB();
         updateDashboardStats();
 
         // Actualizar grafico
@@ -1002,6 +1053,7 @@ function handleSettings(e) {
     // Update wallet
     matchedUser.wallet = newWallet;
     savedWalletAddress = newWallet;
+    saveUserToDB(matchedUser);
 
     // Attempt to update withdraw input if it's currently on "saved"
     toggleNewWalletInput();
@@ -1053,6 +1105,7 @@ function adminSaveUser() {
             if (referrerUser) {
                 const bonus = addedInvestment * 0.07;
                 referrerUser.balance += bonus;
+                saveUserToDB(referrerUser);
 
                 // Notificar al referente
                 if (currentUser && currentUser.username.toLowerCase() === referrerUser.username.toLowerCase()) {
@@ -1072,6 +1125,8 @@ function adminSaveUser() {
         if (newPass.trim()) {
             matchedUser.password = newPass;
         }
+
+        saveUserToDB(matchedUser);
 
         alert("Los datos del usuario " + matchedUser.username + " han sido actualizados y guardados en la BD.");
 
@@ -1102,6 +1157,7 @@ function adminDeleteUser() {
         const index = usersDB.findIndex(u => u.username === currentlyEditingUsername);
         if (index > -1) {
             usersDB.splice(index, 1); // Delete from DB
+            deleteUserFromDB(currentlyEditingUsername);
             alert(`El usuario ${currentlyEditingUsername} ha sido eliminado definitivamente.`);
             document.getElementById('admin-user-edit-section').style.display = 'none';
             document.getElementById('admin-search-user').value = "";
@@ -1336,6 +1392,7 @@ function addPendingAdminTransaction(username, type, amount) {
     const dbUser = usersDB.find(u => u.username === username);
     if (dbUser && type === 'Depósito') {
         dbUser.pendingDeposits.push({ id: rowId, amount: amount, status: 'pending' });
+        saveUserToDB(dbUser);
     }
 
     const row = document.createElement('tr');
@@ -1427,6 +1484,7 @@ function approveTransactionAdmin(btnElement, type, username, amount) {
         if (dbUser) {
             const t = dbUser.pendingDeposits.find(tx => tx.amount === amount && tx.status === 'pending');
             if (t) t.status = 'approved';
+            saveUserToDB(dbUser);
         }
         alert("💰 Has confirmado el depósito correctamente. El usuario ha sido notificado para activar su inversión.");
     } else {
@@ -1443,6 +1501,7 @@ function denyTransactionAdmin(btnElement, type, username, amount) {
         if (dbUser) {
             const t = dbUser.pendingDeposits.find(tx => tx.amount === amount && tx.status === 'pending');
             if (t) t.status = 'denied';
+            saveUserToDB(dbUser);
         }
         alert("❌ Has marcado el depósito como NO RECIBIDO. El usuario ha sido notificado.");
     } else {
@@ -1484,6 +1543,7 @@ function applyInvestment() {
                     }
                 }
             }
+            saveUserToDB(dbUser);
         }
 
         updateDashboardStats();
