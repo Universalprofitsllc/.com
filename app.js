@@ -124,6 +124,21 @@ db.collection("users").onSnapshot((snapshot) => {
                 if (ticketView && ticketView.classList.contains('active')) {
                     renderChatView();
                 }
+                // Actualizar chat flotante siempre
+                renderFloatChat();
+                // Badge si el panel está cerrado y el último mensaje es del admin
+                const mu = usersDB.find(u => u.username === currentUser.username);
+                if (mu && mu.chat && mu.chat.messages && mu.chat.messages.length > 0) {
+                    const lastMsg = mu.chat.messages[mu.chat.messages.length - 1];
+                    if (lastMsg && lastMsg.isAdmin && !floatChatOpen) {
+                        notifyFloatChatBadge();
+                    }
+                }
+                // Recargar settings si está activo
+                const settingsView = document.getElementById('subview-settings');
+                if (settingsView && settingsView.classList.contains('active')) {
+                    loadSettingsForm();
+                }
             }
         }
     } else if (initialLoadDone && currentUser && currentUser.isAdmin) {
@@ -243,6 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const savedView = localStorage.getItem('up_currentView') || 'dashboard';
                 switchDashboardView(savedView);
                 setTimeout(initChart, 300);
+                if (!currentUser.isAdmin) showFloatChatBtn();
             } else {
                 navigate('login');
             }
@@ -690,6 +706,9 @@ function handleLogin(e) {
 
         setTimeout(initChart, 300);
 
+        // Mostrar chat flotante si no es admin
+        if (!currentUser.isAdmin) showFloatChatBtn();
+
         // Reset states just in case
         setTimeout(() => {
             if (typeof cancelDeposit === "function") {
@@ -788,6 +807,7 @@ function logout() {
     }
 
     // Volver a la vista de login
+    hideFloatChatBtn();
     navigate('login');
 }
 
@@ -1528,18 +1548,7 @@ function cancelContract() {
 }
 
 function toggleEditProfile() {
-    const fields = ['settings-firstname', 'settings-lastname', 'settings-current-pass', 'settings-new-pass', 'settings-wallet'];
-    fields.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.disabled = false;
-    });
-
-    const btnSave = document.getElementById('btn-save-settings');
-    if (btnSave) {
-        btnSave.disabled = false;
-        btnSave.style.opacity = '1';
-        btnSave.style.cursor = 'pointer';
-    }
+    // Ya no se necesita — campos siempre activos
 }
 
 function loadSettingsForm() {
@@ -1547,32 +1556,20 @@ function loadSettingsForm() {
     const matchedUser = usersDB.find(u => u.username === currentUser.username);
     if (!matchedUser) return;
 
-    // Reset disabling
-    const fields = ['settings-firstname', 'settings-lastname', 'settings-current-pass', 'settings-new-pass', 'settings-wallet'];
-    fields.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.disabled = true;
-            el.value = ""; // clear passes
-        }
-    });
-
-    const btnSave = document.getElementById('btn-save-settings');
-    if (btnSave) {
-        btnSave.disabled = true;
-        btnSave.style.opacity = '0.5';
-        btnSave.style.cursor = 'not-allowed';
-    }
-
-    // Populate data
     const fname = document.getElementById('settings-firstname');
-    if (fname) fname.value = matchedUser.firstname || "";
+    if (fname) fname.value = matchedUser.firstname || '';
 
     const lname = document.getElementById('settings-lastname');
-    if (lname) lname.value = matchedUser.lastname || "";
+    if (lname) lname.value = matchedUser.lastname || '';
 
     const wallet = document.getElementById('settings-wallet');
-    if (wallet) wallet.value = matchedUser.wallet || "";
+    if (wallet) wallet.value = matchedUser.wallet || '';
+
+    // Limpiar contraseñas (nunca se muestran)
+    const cp = document.getElementById('settings-current-pass');
+    const np = document.getElementById('settings-new-pass');
+    if (cp) cp.value = '';
+    if (np) np.value = '';
 }
 
 function handleSettings(e) {
@@ -1582,47 +1579,59 @@ function handleSettings(e) {
     const matchedUser = usersDB.find(u => u.username === currentUser.username);
     if (!matchedUser) return;
 
-    const firstname = document.getElementById('settings-firstname').value;
-    const lastname = document.getElementById('settings-lastname').value;
-    const newWallet = document.getElementById('settings-wallet').value;
+    const firstname = document.getElementById('settings-firstname').value.trim();
+    const lastname  = document.getElementById('settings-lastname').value.trim();
+    const newWallet = document.getElementById('settings-wallet').value.trim();
     const currentPass = document.getElementById('settings-current-pass').value;
-    const newPass = document.getElementById('settings-new-pass').value;
+    const newPass     = document.getElementById('settings-new-pass').value;
 
-    // Check pass logic
+    // Cambio de contraseña (opcional)
     if (newPass || currentPass) {
         if (matchedUser.password !== currentPass) {
-            alert("La contraseña actual es incorrecta. No se guardaron los cambios de contraseña.");
+            alert('La contraseña actual es incorrecta. El resto de los cambios no se guardaron.');
             return;
         }
         if (newPass.length < 5) {
-            alert("La nueva contraseña debe tener al menos 5 caracteres.");
+            alert('La nueva contraseña debe tener al menos 5 caracteres.');
             return;
         }
         matchedUser.password = newPass;
     }
 
-    // Update names
+    // Guardar nombre y apellido
     matchedUser.firstname = firstname;
-    matchedUser.lastname = lastname;
-    const displayFirstname = firstname || matchedUser.username;
+    matchedUser.lastname  = lastname;
 
+    // Actualizar nombre visible en el dashboard
+    const displayName = firstname || matchedUser.username;
     const welcomeEl = document.getElementById('welcome-username');
-    if (welcomeEl) welcomeEl.innerText = displayFirstname;
+    if (welcomeEl) welcomeEl.innerText = displayName;
     const treeEl = document.getElementById('tree-username');
-    if (treeEl) treeEl.innerText = displayFirstname;
+    if (treeEl) treeEl.innerText = displayName;
 
-    // Update wallet
+    // Guardar wallet
     matchedUser.wallet = newWallet;
     savedWalletAddress = newWallet;
+
+    // Guardar en Firebase
     saveUserToDB(matchedUser);
 
-    // Attempt to update withdraw input if it's currently on "saved"
     toggleNewWalletInput();
 
-    alert('Ajustes guardados correctamente. Sus datos personales han sido actualizados.');
+    // Feedback visual en el botón
+    const btn = document.getElementById('btn-save-settings');
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-check"></i> ¡Guardado!';
+        btn.style.background = 'var(--success)';
+        setTimeout(() => {
+            btn.innerHTML = '<i class="fas fa-save"></i> Guardar Cambios';
+            btn.style.background = '';
+        }, 2500);
+    }
 
-    // Lock again
-    loadSettingsForm();
+    // Limpiar campos de contraseña
+    document.getElementById('settings-current-pass').value = '';
+    document.getElementById('settings-new-pass').value = '';
 }
 
 // --- Admin Panel Actions ---
@@ -2245,5 +2254,142 @@ function setTheme(themeName) {
         } else {
             qrImage.src = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=TGCEGCmXpcxEv8RwyebbCUyHAYn8ugCVZ7&color=d4af37&bgcolor=1a1a1a";
         }
+    }
+}
+
+// ===== CHAT FLOTANTE =====
+
+let floatChatOpen = false;
+
+function showFloatChatBtn() {
+    if (!currentUser || currentUser.isAdmin) return;
+    const btn = document.getElementById('float-chat-btn');
+    if (btn) btn.style.display = 'block';
+}
+
+function hideFloatChatBtn() {
+    const btn = document.getElementById('float-chat-btn');
+    if (btn) btn.style.display = 'none';
+    const panel = document.getElementById('float-chat-panel');
+    if (panel) panel.style.display = 'none';
+    floatChatOpen = false;
+}
+
+function toggleFloatChat() {
+    floatChatOpen = !floatChatOpen;
+    const panel = document.getElementById('float-chat-panel');
+    if (!panel) return;
+    panel.style.display = floatChatOpen ? 'block' : 'none';
+    if (floatChatOpen) {
+        renderFloatChat();
+        // Quitar badge
+        const badge = document.getElementById('float-chat-badge');
+        if (badge) badge.style.display = 'none';
+    }
+}
+
+function renderFloatChat() {
+    if (!currentUser) return;
+    const matchedUser = usersDB.find(u => u.username === currentUser.username);
+    const messagesEl   = document.getElementById('float-chat-messages');
+    const inputArea    = document.getElementById('float-chat-input-area');
+    const closedEl     = document.getElementById('float-chat-closed');
+    const statusText   = document.getElementById('float-chat-status-text');
+
+    if (!messagesEl) return;
+
+    if (!matchedUser || !matchedUser.chat) {
+        // Sin chat iniciado
+        messagesEl.style.display = 'flex';
+        if (inputArea) inputArea.style.display = 'flex';
+        if (closedEl) closedEl.style.display = 'none';
+        if (statusText) statusText.textContent = 'Escríbenos, te respondemos pronto';
+        messagesEl.innerHTML = `
+            <div style="text-align:center; margin:auto; padding:20px;">
+                <i class="fas fa-comments" style="font-size:2.5rem; color:var(--gold-primary); opacity:0.5;"></i>
+                <p style="color:var(--text-muted); font-size:0.85rem; margin-top:10px;">Envíanos un mensaje y el administrador te responderá.</p>
+            </div>`;
+        return;
+    }
+
+    const chat = matchedUser.chat;
+
+    if (chat.status === 'closed') {
+        messagesEl.style.display = 'none';
+        if (inputArea) inputArea.style.display = 'none';
+        if (closedEl) closedEl.style.display = 'block';
+        if (statusText) statusText.textContent = 'Chat cerrado';
+        return;
+    }
+
+    // Chat abierto
+    messagesEl.style.display = 'flex';
+    if (inputArea) inputArea.style.display = 'flex';
+    if (closedEl) closedEl.style.display = 'none';
+    if (statusText) statusText.textContent = 'En línea — te respondemos pronto';
+
+    const msgs = chat.messages || [];
+    if (msgs.length === 0) {
+        messagesEl.innerHTML = `
+            <div style="text-align:center; margin:auto; padding:20px;">
+                <i class="fas fa-comments" style="font-size:2.5rem; color:var(--gold-primary); opacity:0.5;"></i>
+                <p style="color:var(--text-muted); font-size:0.85rem; margin-top:10px;">Envíanos un mensaje.</p>
+            </div>`;
+        return;
+    }
+
+    messagesEl.innerHTML = msgs.map(m => {
+        const isMine = !m.isAdmin;
+        return `
+            <div class="float-msg ${isMine ? 'float-msg-user' : 'float-msg-admin'}">
+                <span class="float-msg-sender">${m.isAdmin ? 'Soporte' : m.sender}</span>
+                ${m.text}
+                <span class="float-msg-time">${m.time}</span>
+            </div>`;
+    }).join('');
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function floatChatSend() {
+    const input = document.getElementById('float-chat-input');
+    const message = input ? input.value.trim() : '';
+    if (!message) return;
+
+    const matchedUser = usersDB.find(u => u.username === currentUser.username);
+    if (!matchedUser) return;
+
+    // Auto-abrir chat si no existe
+    if (!matchedUser.chat || matchedUser.chat.status === 'closed') {
+        matchedUser.chat = { status: 'open', messages: [] };
+    }
+    if (!matchedUser.chat.messages) matchedUser.chat.messages = [];
+
+    matchedUser.chat.messages.push({
+        sender: currentUser.username,
+        text: message,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isAdmin: false
+    });
+    matchedUser.chat.status = 'open';
+
+    saveUserToDB(matchedUser);
+    input.value = '';
+    renderFloatChat();
+
+    addNotification(
+        'Nuevo Mensaje de Soporte',
+        `<strong>${currentUser.username}</strong>: ${message}`,
+        'fa-comments',
+        'var(--gold-primary)',
+        `switchDashboardView('admin')`
+    );
+}
+
+// Mostrar badge en el botón flotante cuando llega una respuesta del admin
+function notifyFloatChatBadge() {
+    if (floatChatOpen) return;
+    const badge = document.getElementById('float-chat-badge');
+    if (badge) {
+        badge.style.display = 'flex';
     }
 }

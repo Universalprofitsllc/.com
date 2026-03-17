@@ -567,65 +567,64 @@
 
                 <!-- Settings Sub-view -->
                 <div id="subview-settings" class="subview">
-                    <header class="content-header"
-                        style="display: flex; justify-content: space-between; align-items: center;">
+                    <header class="content-header">
                         <h2>Configuración</h2>
-                        <button type="button" class="btn btn-outline" id="btn-edit-profile"
-                            onclick="toggleEditProfile()"><i class="fas fa-edit"></i> Editar Datos</button>
                     </header>
                     <div class="panel settings-panel">
-                        <form onsubmit="handleSettings(event)">
-                            <h3>Datos Personales</h3>
+                        <form onsubmit="handleSettings(event)" id="settings-form">
+
+                            <h3><i class="fas fa-user-circle" style="color:var(--gold-primary);margin-right:8px;"></i>Datos Personales</h3>
+                            <p class="text-muted small-text mt-2" style="margin-bottom:15px;">Estos datos se guardan en tu cuenta y permanecen siempre.</p>
                             <div class="form-row">
                                 <div class="form-group half">
                                     <label>Nombre</label>
-                                    <input type="text" id="settings-firstname" disabled>
+                                    <input type="text" id="settings-firstname" placeholder="Tu nombre">
                                 </div>
                                 <div class="form-group half">
                                     <label>Apellido</label>
-                                    <input type="text" id="settings-lastname" disabled>
+                                    <input type="text" id="settings-lastname" placeholder="Tu apellido">
                                 </div>
                             </div>
 
                             <hr class="divider">
 
-                            <h3>Cambiar Contraseña</h3>
-                            <div class="form-group">
-                                <label>Contraseña Actual</label>
-                                <input type="password" id="settings-current-pass" placeholder="••••••••" disabled>
-                            </div>
-                            <div class="form-group">
-                                <label>Nueva Contraseña</label>
-                                <input type="password" id="settings-new-pass" placeholder="••••••••" disabled>
+                            <h3><i class="fas fa-lock" style="color:var(--gold-primary);margin-right:8px;"></i>Cambiar Contraseña</h3>
+                            <p class="text-muted small-text mt-2" style="margin-bottom:15px;">Deja estos campos vacíos si no deseas cambiar la contraseña.</p>
+                            <div class="form-row">
+                                <div class="form-group half">
+                                    <label>Contraseña Actual</label>
+                                    <input type="password" id="settings-current-pass" placeholder="••••••••">
+                                </div>
+                                <div class="form-group half">
+                                    <label>Nueva Contraseña</label>
+                                    <input type="password" id="settings-new-pass" placeholder="••••••••">
+                                </div>
                             </div>
 
                             <hr class="divider">
 
-                            <h3>Billetera Predeterminada</h3>
-                            <p class="text-muted small-text">Esta wallet será usada para tus retiros automáticos o
-                                manuales.</p>
-                            <div class="form-group mt-2">
+                            <h3><i class="fas fa-wallet" style="color:var(--gold-primary);margin-right:8px;"></i>Billetera Predeterminada</h3>
+                            <p class="text-muted small-text mt-2" style="margin-bottom:15px;">Esta wallet se usará para tus retiros.</p>
+                            <div class="form-group">
                                 <label>Dirección USDT TRC20</label>
-                                <input type="text" id="settings-wallet"
-                                    placeholder="Ej. T... (Dejar en blanco si no tiene)" disabled>
+                                <input type="text" id="settings-wallet" placeholder="Ej. TGCEGCm...">
                             </div>
 
                             <hr class="divider">
 
-                            <h3>Apariencia</h3>
-                            <div class="form-group">
+                            <h3><i class="fas fa-paint-brush" style="color:var(--gold-primary);margin-right:8px;"></i>Apariencia</h3>
+                            <div class="form-group mt-2">
                                 <label>Tema Visual</label>
                                 <div class="theme-toggle">
-                                    <button type="button" class="btn btn-outline active" id="btn-theme-dark"
-                                        onclick="setTheme('dark')">Oscuro con Dorado</button>
-                                    <button type="button" class="btn btn-outline" id="btn-theme-light"
-                                        onclick="setTheme('light')">Blanco con Dorado</button>
+                                    <button type="button" class="btn btn-outline active" id="btn-theme-dark" onclick="setTheme('dark')">🌙 Oscuro</button>
+                                    <button type="button" class="btn btn-outline" id="btn-theme-light" onclick="setTheme('light')">☀️ Claro</button>
                                 </div>
                             </div>
 
                             <div class="mt-4">
-                                <button type="submit" class="btn btn-primary" id="btn-save-settings"
-                                    style="opacity: 0.5; cursor: not-allowed;" disabled>Guardar Cambios</button>
+                                <button type="submit" class="btn btn-primary btn-block" id="btn-save-settings">
+                                    <i class="fas fa-save"></i> Guardar Cambios
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -879,7 +878,86 @@
     </section>
     </div>
 
+    <!-- Botón flotante de chat (solo usuarios) -->
+    <div id="float-chat-btn" style="display:none; position:fixed; bottom:25px; right:25px; z-index:500;">
+        <button onclick="toggleFloatChat()" style="
+            width:58px; height:58px; border-radius:50%; border:none;
+            background:var(--gold-gradient); color:#000; font-size:1.4rem;
+            cursor:pointer; box-shadow:0 4px 20px rgba(212,175,55,0.5);
+            display:flex; align-items:center; justify-content:center;
+            transition: transform 0.2s, box-shadow 0.2s;
+        " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+            <i class="fas fa-comments" id="float-chat-icon"></i>
+        </button>
+        <span id="float-chat-badge" style="
+            display:none; position:absolute; top:-4px; right:-4px;
+            background:var(--danger); color:#fff; border-radius:50%;
+            width:18px; height:18px; font-size:0.65rem; font-weight:700;
+            align-items:center; justify-content:center;
+        ">!</span>
+    </div>
+
+    <!-- Panel flotante de chat -->
+    <div id="float-chat-panel" style="
+        display:none; position:fixed; bottom:95px; right:25px; z-index:499;
+        width:340px; max-width:calc(100vw - 30px);
+        background:var(--panel-bg); border:1px solid var(--panel-border);
+        border-radius:16px; box-shadow:0 8px 32px rgba(0,0,0,0.4);
+        backdrop-filter:blur(15px); overflow:hidden;
+        animation: fadeIn 0.2s ease;
+    ">
+        <!-- Header del panel -->
+        <div style="
+            padding:14px 18px; background:var(--gold-gradient);
+            display:flex; align-items:center; justify-content:space-between;
+        ">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <i class="fas fa-headset" style="color:#000; font-size:1.1rem;"></i>
+                <div>
+                    <div style="font-weight:700; color:#000; font-size:0.95rem;">Soporte Universal Profits</div>
+                    <div style="font-size:0.72rem; color:rgba(0,0,0,0.6);" id="float-chat-status-text">Conectando...</div>
+                </div>
+            </div>
+            <button onclick="toggleFloatChat()" style="background:none;border:none;cursor:pointer;color:#000;font-size:1.1rem;padding:4px;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Mensajes -->
+        <div id="float-chat-messages" style="
+            height:280px; overflow-y:auto; padding:15px;
+            display:flex; flex-direction:column; gap:10px;
+            background:rgba(0,0,0,0.1);
+        "></div>
+
+        <!-- Input -->
+        <div id="float-chat-input-area" style="
+            padding:12px; border-top:1px solid var(--panel-border);
+            display:flex; gap:8px; align-items:center;
+        ">
+            <input type="text" id="float-chat-input" placeholder="Escribe un mensaje..."
+                style="flex:1; padding:10px 14px; border-radius:20px; font-size:0.9rem;"
+                onkeydown="if(event.key==='Enter') floatChatSend()">
+            <button onclick="floatChatSend()" style="
+                width:38px; height:38px; border-radius:50%; border:none;
+                background:var(--gold-gradient); color:#000; cursor:pointer;
+                display:flex; align-items:center; justify-content:center; font-size:0.9rem;
+                flex-shrink:0;
+            "><i class="fas fa-paper-plane"></i></button>
+        </div>
+
+        <!-- Chat cerrado -->
+        <div id="float-chat-closed" style="display:none; padding:20px; text-align:center;">
+            <i class="fas fa-lock" style="color:var(--text-muted); font-size:2rem; margin-bottom:10px;"></i>
+            <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:12px;">Chat finalizado por el administrador.</p>
+            <button class="btn btn-primary" style="padding:8px 18px; font-size:0.85rem;" onclick="openNewChat(); renderFloatChat();">
+                <i class="fas fa-plus"></i> Nuevo Chat
+            </button>
+        </div>
+    </div>
+
     <!-- Modal Terms -->
+
     <div id="terms-modal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeTerms()">&times;</span>
