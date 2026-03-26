@@ -382,18 +382,9 @@
                         <p class="text-muted">Rendimientos basados en trading y acciones estratégicas (Oro, Nasdaq,
                             US30).</p>
                         <div class="returns-info">
-                            <div class="return-tier">
-                                <h4>
-                                    < $500</h4>
-                                        <p>0.80% / Día</p>
-                            </div>
-                            <div class="return-tier">
-                                <h4>$600 - $5k</h4>
-                                <p>1.10% / Día</p>
-                            </div>
-                            <div class="return-tier">
-                                <h4>> $10k</h4>
-                                <p>1.80% / Día</p>
+                            <div class="return-tier" style="flex: 1;">
+                                <h4 style="color: var(--gold-primary); font-size: 1.5rem;">1.25% Diario</h4>
+                                <p>Rendimiento fijo para todos los capitales.</p>
                             </div>
                         </div>
                     </div>
@@ -597,8 +588,7 @@
                     <div class="panel">
                         <h3>1. Modelo de Inversión</h3>
                         <ul style="list-style: none; padding-left: 0; margin-top: 15px; display: grid; gap: 10px;">
-                            <li><i class="fas fa-chart-line gold"></i> <strong>Rentabilidad diaria:</strong> 0.80% a
-                                1.80% según el capital invertido.</li>
+                            <li><i class="fas fa-chart-line gold"></i> <strong>Rentabilidad diaria:</strong> 1.25% fijo sobre el capital activo.</li>
                             <li><i class="fas fa-calendar-alt gold"></i> <strong>Pagos:</strong> de lunes a viernes.
                             </li>
                             <li><i class="fas fa-bullseye gold"></i> <strong>Objetivo del contrato:</strong> la
@@ -782,53 +772,51 @@
                     </header>
                     <div class="panel">
                         <div class="tabs-container">
-                            <button class="tab-btn active" onclick="switchHistoryTab('investments')">Inversiones</button>
+                            <button class="tab-btn active" onclick="switchHistoryTab('activity')">Actividad</button>
                             <button class="tab-btn" onclick="switchHistoryTab('withdrawals')">Retiros</button>
-                            <button class="tab-btn" onclick="switchHistoryTab('bonuses')">Bonos</button>
+                            <button class="tab-btn" onclick="switchHistoryTab('investments')">Inversiones</button>
                         </div>
 
                         <div id="history-content" class="mt-4">
                             <!-- Dynamic Content -->
-                            <div id="hist-investments" class="history-tab-content active">
+                            <div id="hist-activity" class="history-tab-content active">
                                 <table class="history-table">
                                     <thead>
                                         <tr>
-                                            <th>#</th>
-                                            <th>Monto Invertido</th>
-                                            <th>Ganancias</th>
-                                            <th>% Diario</th>
-                                            <th>Estado / Progreso</th>
-                                            <th>Fecha de Activación</th>
+                                            <th>Tipo</th>
+                                            <th>Detalle</th>
+                                            <th>Monto</th>
+                                            <th>Fecha</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="hist-investments-tbody"></tbody>
+                                    <tbody id="hist-activity-tbody"></tbody>
                                 </table>
                             </div>
                             <div id="hist-withdrawals" class="history-tab-content">
                                 <table class="history-table">
                                     <thead>
                                         <tr>
-                                            <th>Monto Solicitado</th>
-                                            <th>Comisión (5%)</th>
-                                            <th>Billetera Destino</th>
+                                            <th>Monto</th>
+                                            <th>Fee (5%)</th>
+                                            <th>Destino</th>
                                             <th>Estado</th>
-                                            <th>Fecha de Solicitud</th>
+                                            <th>Fecha</th>
                                         </tr>
                                     </thead>
                                     <tbody id="hist-withdrawals-tbody"></tbody>
                                 </table>
                             </div>
-                            <div id="hist-bonuses" class="history-tab-content">
+                            <div id="hist-investments" class="history-tab-content">
                                 <table class="history-table">
                                     <thead>
                                         <tr>
-                                            <th>De Usuario</th>
-                                            <th>Bono Recibido (7%)</th>
-                                            <th>Monto que Invirtió</th>
+                                            <th>Monto</th>
+                                            <th>Rendimiento</th>
+                                            <th>Estado</th>
                                             <th>Fecha</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="hist-bonuses-tbody"></tbody>
+                                    <tbody id="hist-investments-tbody"></tbody>
                                 </table>
                             </div>
                         </div>
@@ -934,6 +922,8 @@
                             <div style="display: flex; gap: 10px; margin-top: 15px;">
                                 <button class="btn btn-primary" onclick="adminSaveUser()"><i class="fas fa-save"></i>
                                     Guardar Cambios</button>
+                                <button class="btn btn-outline" style="border-color: var(--warning); color: var(--warning);" onclick="adminResetUser()"><i class="fas fa-undo"></i>
+                                    Restablecer Usuario</button>
                                 <button class="btn btn-danger" onclick="adminDeleteUser()"><i class="fas fa-trash"></i>
                                     Eliminar Usuario</button>
                             </div>
@@ -1035,9 +1025,7 @@
                     de los resultados obtenidos por las estrategias automatizadas. La estructura de rendimiento estimado
                     se distribuye de la siguiente manera:</p>
                 <ul>
-                    <li>0.80% diario para inversiones inferiores a $500 USD</li>
-                    <li>1.10% diario para inversiones entre $600 USD y $5,000 USD</li>
-                    <li>1.80% diario para inversiones superiores a $10,000 USD</li>
+                    <li>1.25% diario fijo para todas las inversiones activas.</li>
                 </ul>
                 <p>Estos dividendos provienen de la actividad operativa de los bots dentro de los mercados financieros
                     mencionados. Los resultados pueden variar dependiendo de las condiciones del mercado, la volatilidad

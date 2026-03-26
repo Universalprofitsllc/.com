@@ -676,7 +676,7 @@ function recalculateUserFinances(matchedUser) {
         let today = new Date(drTime.getFullYear(), drTime.getMonth(), drTime.getDate());
         
         let maxEarnings = inv.amount * 2;
-        let dailyPct = inv.dailyPct ? (inv.dailyPct / 100) : (inv.amount < 600 ? 0.0080 : (inv.amount < 10000 ? 0.0110 : 0.0180));
+        let dailyPct = 0.0125; // 1.25% Fijo
         let earningsPerDay = inv.amount * dailyPct;
         
         let earned = 0;
@@ -754,7 +754,7 @@ function applyAutomaticProfits(matchedUser) {
         let lastPaid = new Date(inv.lastPaidDateStr + " 00:00:00");
         let maxEarnings = inv.amount * 2;
         
-        let dailyPct = inv.dailyPct ? (inv.dailyPct / 100) : (inv.amount < 600 ? 0.0080 : (inv.amount < 10000 ? 0.0110 : 0.0180));
+        let dailyPct = 0.0125; // 1.25% Fijo
         let earningsPerDay = inv.amount * dailyPct;
 
         while (true) {
@@ -831,75 +831,84 @@ function updateWithdrawalStatus() {
     if (!statusBox || !btnWithdraw) return;
 
     const matchedUser = currentUser ? usersDB.find(u => u.username === currentUser.username) : null;
-    const hasDaily = matchedUser && matchedUser.allowDailyWithdraw;
+    if (!matchedUser) return;
 
-    const hasPendingWithdraw = matchedUser && matchedUser.withdrawalHistory && matchedUser.withdrawalHistory.some(w => w.status === 'pending');
+    const hasPendingWithdraw = matchedUser.withdrawalHistory && matchedUser.withdrawalHistory.some(w => w.status === 'pending');
 
     if (hasPendingWithdraw) {
         statusBox.innerHTML = '<h4 style="color: var(--warning);"><i class="fas fa-hourglass-half"></i> Retiro en Proceso</h4>' +
             '<p class="small-text mt-2">Tienes una solicitud de retiro pendiente. Por favor espera a que sea confirmada por el administrador.</p>';
         statusBox.style.borderColor = 'var(--warning)';
         btnWithdraw.disabled = true;
-        btnWithdraw.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Solicitud de retiro pendiente';
+        btnWithdraw.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Retiro Pendiente';
         return;
     }
 
-    if (currentUser && currentUser.isAdmin) {
-        statusBox.innerHTML = '<h4 style="color: var(--success);"><i class="fas fa-lock-open"></i> Retiros VIP Habilitados</h4>' +
-            '<p class="small-text mt-2">Como administrador, puedes retirar en cualquier momento y sin límite de veces.</p>';
+    // Admin / HasDaily Bypass
+    if (currentUser.isAdmin || matchedUser.allowDailyWithdraw) {
+        statusBox.innerHTML = `<h4 style="color: var(--success);"><i class="fas fa-lock-open"></i> Retiros ${currentUser.isAdmin ? 'Admin' : 'Diarios'} Habilitados</h4>` +
+            `<p class="small-text mt-2">Puedes retirar en cualquier momento sin restricciones de ciclo.</p>`;
         statusBox.style.borderColor = 'var(--success)';
         btnWithdraw.disabled = false;
-        btnWithdraw.innerHTML = 'Solicitar Retiro (Admin)';
+        btnWithdraw.innerHTML = 'Solicitar Retiro';
         return;
     }
 
-    let reachedLimit = false;
-    if (matchedUser) {
-        const drTime = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Santo_Domingo"}));
-        const todayStr = drTime.toISOString().split('T')[0];
-        const limit = matchedUser.allowedWithdrawalsPerDay || 1;
-        if (matchedUser.lastWithdrawalDate === todayStr && (matchedUser.withdrawalsToday || 0) >= limit) {
-            reachedLimit = true;
-        }
-    }
-
-    if (reachedLimit) {
-        statusBox.innerHTML = '<h4 style="color: var(--danger);"><i class="fas fa-times-circle"></i> Límite de Retiros Alcanzado</h4>' +
-            '<p class="small-text mt-2">Has alcanzado tu límite de retiros permitidos por hoy. Vuelve a intentarlo mañana.</p>';
+    // 1.25% ROI and Cycle Logic
+    const activeInvs = (matchedUser.investments || []).filter(i => i.active);
+    if (activeInvs.length === 0) {
+        statusBox.innerHTML = '<h4 style="color: var(--danger);"><i class="fas fa-lock"></i> Sin Inversiones Activas</h4>' +
+            '<p class="small-text mt-2">Debes tener al menos una inversión activa para retirar fondos.</p>';
         statusBox.style.borderColor = 'var(--danger)';
         btnWithdraw.disabled = true;
-        btnWithdraw.innerHTML = 'Límite alcanzado';
+        btnWithdraw.innerHTML = 'Bloqueado';
         return;
     }
 
-    if (hasDaily) {
-        statusBox.innerHTML = '<h4 style="color: var(--success);"><i class="fas fa-lock-open"></i> Retiros Diarios Habilitados</h4>' +
-            '<p class="small-text mt-2">Tienes habilitado el retiro en cualquier momento sin restricciones de tiempo.</p>';
-        statusBox.style.borderColor = 'var(--success)';
-        btnWithdraw.disabled = false;
-        btnWithdraw.innerHTML = 'Solicitar Retiro Diario';
-        return;
-    }
+    // Lógica del Ciclo de 7 Días + 24h Ventana
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const cycleWait = 7 * msPerDay; // 7 días de espera
+    const cycleWindow = 1 * msPerDay; // 24h de ventana
 
-    btnWithdraw.innerHTML = 'Solicitar Retiro';
-    let daysSinceLast = daysPaid;
-    if (matchedUser && matchedUser.lastWithdrawalDaysPaid !== undefined) {
-        daysSinceLast = daysPaid - matchedUser.lastWithdrawalDaysPaid;
-    }
-
-    const daysLeft = 7 - daysSinceLast;
-
-    if (daysPaid > 0 && daysSinceLast >= 7) { 
-        statusBox.innerHTML = '<h4 style="color: var(--success);"><i class="fas fa-lock-open"></i> Retiros Habilitados</h4>' +
-            '<p class="small-text mt-2">Ya has cumplido tu ciclo de 7 días. Puedes solicitar tus fondos ahora.</p>';
-        statusBox.style.borderColor = 'var(--success)';
-        btnWithdraw.disabled = false;
+    // Base: Primera inversión o último "evento" de retiro
+    let baseTime = 0;
+    if (matchedUser.lastWithdrawalTimestamp) {
+        baseTime = matchedUser.lastWithdrawalTimestamp;
     } else {
-        const remaining = daysLeft > 0 ? daysLeft : 7;
-        statusBox.innerHTML = '<h4 style="color: var(--danger);"><i class="fas fa-lock"></i> Retiros Bloqueados</h4>' +
-            `<p class="small-text mt-2">Aún no cumples tu ciclo. Días restantes para su próximo periodo de retiro: <strong id="withdraw-days-left">${remaining} días</strong></p>`;
+        // La inversión cuenta el día después de realizada (86400000 ms)
+        baseTime = new Date(activeInvs[0].date).getTime() + msPerDay;
+    }
+
+    const now = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Santo_Domingo"})).getTime();
+    const elapsed = now - baseTime;
+
+    // Si pasaron más de 8 días (ciclo completo + ventana perdida), avanzar el ciclo base
+    if (elapsed >= (cycleWait + cycleWindow)) {
+        // Calcular cuántos ciclos completos se han saltado
+        const cyclesMissed = Math.floor(elapsed / (cycleWait + cycleWindow));
+        matchedUser.lastWithdrawalTimestamp = baseTime + (cyclesMissed * (cycleWait + cycleWindow));
+        saveUserToDB(matchedUser);
+        // Recalcular con el nuevo baseTime
+        updateWithdrawalStatus();
+        return;
+    }
+
+    if (elapsed < cycleWait) {
+        // Fase de Espera
+        const remDays = Math.ceil((cycleWait - elapsed) / msPerDay);
+        statusBox.innerHTML = `<h4 style="color: var(--danger);"><i class="fas fa-clock"></i> Ciclo de Espera</h4>` +
+            `<p class="small-text mt-2">Debes esperar 7 días. Faltan: <strong>${remDays} días</strong>.</p>`;
         statusBox.style.borderColor = 'var(--danger)';
         btnWithdraw.disabled = true;
+        btnWithdraw.innerHTML = 'Bloqueado por Ciclo';
+    } else {
+        // Fase de Ventana (24h)
+        const remHours = Math.ceil((cycleWait + cycleWindow - elapsed) / (60 * 60 * 1000));
+        statusBox.innerHTML = `<h4 style="color: var(--success);"><i class="fas fa-unlock"></i> Ventana de Retiro Abierta</h4>` +
+            `<p class="small-text mt-2">¡Puedes retirar ahora! Tienes 24 horas. Faltan: <strong>${remHours} horas</strong>.</p>`;
+        statusBox.style.borderColor = 'var(--success)';
+        btnWithdraw.disabled = false;
+        btnWithdraw.innerHTML = 'Solicitar Retiro';
     }
 }
 
@@ -1438,116 +1447,117 @@ function renderHistory(tab) {
             + ' ' + d.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
     }
 
+    if (tab === 'activity') {
+        const tbody = document.getElementById('hist-activity-tbody');
+        if (!tbody) return;
+
+        let hist = [];
+
+        // 1. Pagos diarios y Referidos (Bonus History)
+        if (matchedUser.bonusHistory) {
+            matchedUser.bonusHistory.forEach(b => {
+                let typeLabel = "Referido";
+                let typeClass = "var(--gold-primary)";
+                let label = b.from || "Sistema";
+
+                if (label.includes("Backend") || label.includes("Automático")) {
+                    typeLabel = "Pago diario";
+                    typeClass = "var(--success)";
+                    label = "Fondo de Inversión";
+                }
+
+                hist.push({
+                    type: typeLabel,
+                    class: typeClass,
+                    detail: label,
+                    amount: b.amount,
+                    date: b.date
+                });
+            });
+        }
+
+        // 2. Inversiones
+        if (matchedUser.investments) {
+            matchedUser.investments.forEach(inv => {
+                hist.push({
+                    type: "Inversión",
+                    class: "var(--gold-primary)",
+                    detail: `Capital Activo`,
+                    amount: inv.amount,
+                    date: inv.date
+                });
+            });
+        }
+
+        // 3. Retiros
+        if (matchedUser.withdrawalHistory) {
+            matchedUser.withdrawalHistory.forEach(w => {
+                let statusLabel = w.status === 'pending' ? ' (Pendiente)' : (w.status === 'denied' ? ' (Rechazado)' : ' (Aprobado)');
+                hist.push({
+                    type: "Retiro",
+                    class: "var(--danger)",
+                    detail: `Billetera: ${w.wallet ? w.wallet.slice(0,6) : 'N/A'}...${statusLabel}`,
+                    amount: -w.amount,
+                    date: w.date
+                });
+            });
+        }
+
+        if (hist.length > 0) {
+            tbody.innerHTML = hist.sort((a,b) => new Date(b.date) - new Date(a.date)).map(h => `
+                <tr>
+                    <td><span class="badge" style="background:${h.class}22; color:${h.class}; padding:4px 8px; border-radius:12px; font-size:0.75rem; font-weight:600;">${h.type}</span></td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">${h.detail}</td>
+                    <td style="color:${h.amount > 0 ? 'var(--success)' : 'var(--danger)'}; font-weight:600;">${h.amount > 0 ? '+' : ''}${fmt.format(h.amount)}</td>
+                    <td style="font-size:0.82rem; color:var(--text-muted);">${fmtDate(h.date)}</td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:30px;">Sin actividad reciente.</td></tr>';
+        }
+    }
+
     if (tab === 'investments') {
         const tbody = document.getElementById('hist-investments-tbody');
         if (!tbody) return;
         const invs = matchedUser.investments || [];
-
         if (!invs.length) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:20px;">No hay inversiones registradas aún.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:20px;">No hay inversiones.</td></tr>';
             return;
         }
-
-        tbody.innerHTML = invs.map((inv, i) => {
-            // Fecha: priorizar campo date, fallback al timestamp del id
-            let dateStr = 'N/A';
-            if (inv.date) {
-                dateStr = fmtDate(inv.date);
-            } else {
-                const ts = parseInt(inv.id.split('_')[1]);
-                if (ts && !isNaN(ts)) dateStr = fmtDate(new Date(ts).toISOString());
-            }
-
-            const pct = inv.dailyPct ? inv.dailyPct + '%' : (inv.amount < 600 ? '0.80%' : inv.amount < 10000 ? '1.10%' : '1.80%');
-            const statusStyle = inv.active ? 'color:var(--success); font-weight:600;' : 'color:var(--text-muted);';
-            const statusLabel = inv.active ? '✔ Activa' : 'Cerrada';
-            const earnings = inv.earnings || 0;
-            const maxEarnings = inv.amount * 2;
-            const progress = Math.min((earnings / maxEarnings) * 100, 100).toFixed(1);
-
-            return `
-                <tr>
-                    <td style="color:var(--text-muted); font-size:0.8rem;">#${i + 1}</td>
-                    <td style="color:var(--gold-primary); font-weight:600;">${fmt.format(inv.amount)}</td>
-                    <td style="color:var(--success);">${fmt.format(earnings)}</td>
-                    <td>
-                        <span style="font-size:0.8rem; background:rgba(212,175,55,0.1); padding:3px 8px; border-radius:10px; color:var(--gold-primary);">${pct} / día</span>
-                    </td>
-                    <td><span style="${statusStyle}">${statusLabel}</span>
-                        <div style="width:100%; background:rgba(255,255,255,0.07); height:4px; border-radius:2px; margin-top:4px;">
-                            <div style="width:${progress}%; background:var(--gold-primary); height:4px; border-radius:2px;"></div>
-                        </div>
-                        <span style="font-size:0.7rem; color:var(--text-muted);">${progress}% del 200%</span>
-                    </td>
-                    <td style="font-size:0.82rem; color:var(--text-muted);">${dateStr}</td>
-                </tr>
-            `;
-        }).join('');
+        tbody.innerHTML = invs.map(inv => `
+            <tr>
+                <td style="color:var(--gold-primary); font-weight:600;">${fmt.format(inv.amount)}</td>
+                <td style="color:var(--success);">${fmt.format(inv.earnings || 0)}</td>
+                <td><span style="${inv.active ? 'color:var(--success)' : 'color:var(--text-muted)'}">${inv.active ? 'Activa' : 'Cerrada'}</span></td>
+                <td style="font-size:0.82rem; color:var(--text-muted);">${fmtDate(inv.date)}</td>
+            </tr>
+        `).join('');
     }
 
     if (tab === 'withdrawals') {
         const tbody = document.getElementById('hist-withdrawals-tbody');
         if (!tbody) return;
         const wds = matchedUser.withdrawalHistory || [];
-
         if (!wds.length) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:20px;">No hay retiros registrados aún.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:20px;">No hay retiros.</td></tr>';
             return;
         }
-
         tbody.innerHTML = [...wds].reverse().map(wd => {
-            const statusMap = {
-                pending:  { label: '⏳ Pendiente',  color: 'var(--gold-primary)' },
-                approved: { label: '✔ Aprobado',    color: 'var(--success)' },
-                denied:   { label: '✖ Rechazado',   color: 'var(--danger)' }
-            };
-            const s = statusMap[wd.status] || statusMap.pending;
-            const walletShort = wd.wallet ? wd.wallet.slice(0, 8) + '...' + wd.wallet.slice(-4) : 'N/A';
+            const sMap = { pending: '⏳ Pendi.', approved: '✔ Aprobado', denied: '✖ Rech.' };
+            const sColor = { pending: 'var(--gold-primary)', approved: 'var(--success)', denied: 'var(--danger)' };
             return `
                 <tr>
                     <td style="color:var(--gold-primary); font-weight:600;">${fmt.format(wd.amount)}</td>
-                    <td style="color:var(--danger); font-size:0.85rem;">${fmt.format(wd.fee || 0)} (5%)</td>
-                    <td title="${wd.wallet || ''}" style="font-size:0.8rem; color:var(--text-muted); cursor:default;">${walletShort}</td>
-                    <td style="color:${s.color}; font-weight:600;">${s.label}</td>
+                    <td style="color:var(--danger);">${fmt.format(wd.fee || 0)}</td>
+                    <td style="font-size:0.75rem; color:var(--text-muted);">${wd.wallet ? wd.wallet.slice(0,10) : 'N/A'}...</td>
+                    <td style="color:${sColor[wd.status] || '#fff'}">${sMap[wd.status] || wd.status}</td>
                     <td style="font-size:0.82rem; color:var(--text-muted);">${fmtDate(wd.date)}</td>
                 </tr>
             `;
         }).join('');
     }
-
-    if (tab === 'bonuses') {
-        const tbody = document.getElementById('hist-bonuses-tbody');
-        if (!tbody) return;
-
-        // Usar bonusHistory si existe (datos reales con fecha)
-        if (matchedUser.bonusHistory && matchedUser.bonusHistory.length > 0) {
-            tbody.innerHTML = [...matchedUser.bonusHistory].reverse().map(b => `
-                <tr>
-                    <td style="color:var(--gold-primary);">${b.from}</td>
-                    <td style="color:var(--success); font-weight:600;">+${fmt.format(b.amount)}</td>
-                    <td>${fmt.format(b.investedAmount)}</td>
-                    <td style="font-size:0.82rem; color:var(--text-muted);">${fmtDate(b.date)}</td>
-                </tr>
-            `).join('');
-        } else {
-            // Fallback: calcular desde referidos actuales (para datos pre-existentes)
-            const referrals = usersDB.filter(u => u.referrer && u.referrer.toLowerCase() === currentUser.username.toLowerCase() && u.invested > 0);
-            if (referrals.length) {
-                tbody.innerHTML = referrals.map(ref => `
-                    <tr>
-                        <td style="color:var(--gold-primary);">${ref.username}</td>
-                        <td style="color:var(--success); font-weight:600;">+${fmt.format(ref.invested * 0.07)}</td>
-                        <td>${fmt.format(ref.invested)}</td>
-                        <td style="color:var(--text-muted); font-size:0.82rem;">—</td>
-                    </tr>
-                `).join('');
-            } else {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:20px;">No hay bonos generados aún.</td></tr>';
-            }
-        }
-    }
 }
-
 
 // --- Modals ---
 
@@ -1713,15 +1723,19 @@ function handleWithdraw(e) {
         matchedCurrentUser.lastWithdrawalDaysPaid = daysPaid; // Reset the 7-day countdown!
     }
 
-    // Simulate deduction (and 5% fee logic simply reducing balance)
+    // Deduct
     if (withdrawAmount > 0 && withdrawAmount <= currentUserBalance) {
         const fee = withdrawAmount * 0.05;
         const netWithdraw = withdrawAmount - fee;
         currentUserBalance -= withdrawAmount;
 
-        // Guardar en historial de retiros del usuario
         const dbUser = usersDB.find(u => u.username === currentUser.username);
         if (dbUser) {
+            dbUser.balance = currentUserBalance;
+            // Registrar Ciclo de Retiro Completado
+            const now = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Santo_Domingo"})).getTime();
+            dbUser.lastWithdrawalTimestamp = now;
+
             if (!dbUser.withdrawalHistory) dbUser.withdrawalHistory = [];
             dbUser.withdrawalHistory.push({
                 id: 'wd_' + Date.now(),
@@ -1732,27 +1746,18 @@ function handleWithdraw(e) {
                 status: 'pending',
                 date: new Date().toISOString()
             });
+            saveUserToDB(dbUser);
         }
 
-        syncCurrentUserLocalVarsToDB();
         updateDashboardStats();
-
-        // Actualizar grafico
         updateChart('Retiro', currentUserBalance);
 
-        // Enviar notificacion y resetear la vista
-        addNotification(
-            "Solicitud de Retiro",
-            `Su retiro por <strong>$${withdrawAmount.toFixed(2)}</strong> ha sido solicitado con éxito y está en proceso de envío.`,
-            "fa-file-invoice-dollar",
-            "gold"
-        );
+        addNotification("Solicitud de Retiro", `Su retiro por <strong>$${withdrawAmount.toFixed(2)}</strong> ha sido solicitado y su próximo ciclo de 7 días ha comenzado.`, "fa-file-invoice-dollar", "gold");
 
-        alert(`Solicitud de retiro de $${withdrawAmount} USDT enviada correctamente para revisión.`);
+        alert(`Solicitud de retiro de $${withdrawAmount} USDT enviada correctamente. Tu próximo retiro podrá ser en 7 días.`);
         e.target.reset();
         switchDashboardView('dashboard');
 
-        // Solicitar a Admin
         addPendingAdminTransaction(currentUser.username, 'Retiro', withdrawAmount, targetWallet);
         updateWithdrawalStatus();
     }
@@ -2073,16 +2078,40 @@ function adminDeleteUser() {
         return;
     }
 
-    if (confirm(`¿Estás extremadamente seguro de que deseas ELIMINAR al usuario '${currentlyEditingUsername}'?\n\nEsta acción borrará toda su inversión, referidos y dinero permanentemente del sistema.`)) {
+    if (confirm(`¿ELIMINAR COMPLETAMENTE a '${currentlyEditingUsername}'?\n\nSe borrará: Datos, Balance, Inversiones e Historial permanentemente.`)) {
         const index = usersDB.findIndex(u => u.username === currentlyEditingUsername);
         if (index > -1) {
-            usersDB.splice(index, 1); // Delete from DB
+            usersDB.splice(index, 1);
             deleteUserFromDB(currentlyEditingUsername);
-            alert(`El usuario ${currentlyEditingUsername} ha sido eliminado definitivamente.`);
+            alert(`El usuario ${currentlyEditingUsername} ha sido borrado de la faz de la tierra.`);
             document.getElementById('admin-user-edit-section').style.display = 'none';
             document.getElementById('admin-search-user').value = "";
             currentlyEditingUsername = "";
-            renderAdminUserList(); // Update list
+            renderAdminUserList();
+        }
+    }
+}
+
+function adminResetUser() {
+    if (!currentUser || !currentUser.isAdmin || !currentlyEditingUsername) return;
+
+    if (confirm(`¿RESTABLECER a '${currentlyEditingUsername}'?\n\nSe mantendrá el login pero se borrará: Balance, Inversiones y Todo el Historial.`)) {
+        const matchedUser = usersDB.find(u => u.username === currentlyEditingUsername);
+        if (matchedUser) {
+            matchedUser.balance = 0;
+            matchedUser.invested = 0;
+            matchedUser.earnings = 0;
+            matchedUser.totalHistoricalEarnings = 0;
+            matchedUser.investments = [];
+            matchedUser.bonusHistory = [];
+            matchedUser.withdrawalHistory = [];
+            matchedUser.pendingDeposits = [];
+            matchedUser.lastWithdrawalTimestamp = 0;
+            matchedUser.isRecalculatedFromStart_v3 = true;
+
+            saveUserToDB(matchedUser);
+            alert(`El usuario ${currentlyEditingUsername} ha sido reiniciado como nuevo.`);
+            adminSearchUser(); // Refresh fields
         }
     }
 }
@@ -2500,14 +2529,14 @@ function applyInvestment() {
             dbUser.invested = currentUserInvested;
             
             const now = Date.now();
-            const dailyPct = netInvestment < 600 ? 0.80 : netInvestment < 10000 ? 1.10 : 1.80;
+            const dailyPct = 0.0125; // 1.25% Fijo
             const newInv = {
                 id: 'inv_' + now,
                 amount: netInvestment,
                 earnings: 0,
                 active: true,
                 date: new Date().toISOString(),
-                dailyPct: dailyPct
+                dailyPct: 1.25
             };
             if(!dbUser.investments) {
                 dbUser.investments = [newInv];
