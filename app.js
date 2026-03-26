@@ -218,17 +218,27 @@ setInterval(saveLocalDashboardState, 1000);
 // Automatic system checker for properties
 setInterval(() => {
     if (currentUser) {
-        let changed = false;
+        let globalChanged = false;
         usersDB.forEach(u => {
-            if (recalculateUserFinances(u)) {
-                changed = true;
+            // El administrador actúa como "servidor" y puede procesar a todos.
+            // Los usuarios regulares solo procesan su propio pago.
+            if (currentUser.isAdmin || u.username === currentUser.username) {
+                let uChanged = false;
+                if (recalculateUserFinances(u)) {
+                    uChanged = true;
+                }
+                if (applyAutomaticProfits(u)) {
+                    uChanged = true;
+                }
+                if (uChanged) {
+                    saveUserToDB(u);
+                    if (u.username === currentUser.username) {
+                        globalChanged = true;
+                    }
+                }
             }
-            if (applyAutomaticProfits(u)) {
-                changed = true;
-            }
-            if (changed) saveUserToDB(u);
         });
-        if (changed) updateDashboardStats();
+        if (globalChanged) updateDashboardStats();
     }
 }, 10000); // Check every 10 seconds for real-time magic
 
@@ -312,6 +322,22 @@ const RECOVERY_DICTIONARY = ["sol", "luna", "rio", "montaña", "mar", "estrella"
 
 let tmpRecoveryWords = [];
 let pendingResetUsername = "";
+
+function togglePasswordVisibility(inputId, iconId) {
+    const input = document.getElementById(inputId);
+    const icon  = document.getElementById(iconId);
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+        icon.style.color = 'var(--gold-primary)';
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+        icon.style.color = 'var(--text-muted)';
+    }
+}
 
 function handleRegister(e) {
     e.preventDefault();
@@ -886,22 +912,22 @@ function handleLogin(e) {
     const user = document.getElementById('login-identifier').value.trim();
     const pass = document.getElementById('login-password').value;
 
-    const now = Date.now();
-    // Verificación de Rate Limiting (Prevención Fuerza Bruta - OWASP A07)
-    if (loginAttempts[user] && loginAttempts[user].count >= 5) {
-        if (now - loginAttempts[user].time < 15 * 60 * 1000) {
-            alert('Demasiados intentos fallidos. Por favor, espera 15 minutos por seguridad.');
-            return;
-        } else {
-            loginAttempts[user].count = 0; // Reiniciar después de 15 min
-        }
+    const userOnly = usersDB.find(u => u.username === user);
+    
+    if (userOnly && userOnly.accountLocked) {
+        alert("Tu cuenta ha sido bloqueada por demasiados intentos fallidos. Por favor, haz clic en '¿Olvidó su contraseña?' para restablecerla.");
+        return;
     }
 
     const matchedUser = usersDB.find(u => u.username === user && u.password === pass);
 
     if (matchedUser) {
         // Reiniciar los intentos fallidos al tener éxito
-        if (loginAttempts[user]) loginAttempts[user].count = 0;
+        if (matchedUser.failedLoginAttempts > 0) {
+            matchedUser.failedLoginAttempts = 0;
+            saveUserToDB(matchedUser);
+        }
+        
         currentUser = { username: matchedUser.username, isAdmin: matchedUser.isAdmin };
 
         // Load User Data from simulated DB
@@ -967,16 +993,22 @@ function handleLogin(e) {
         }, 100);
 
     } else {
-        // Registrar intento fallido
-        if (!loginAttempts[user]) loginAttempts[user] = { count: 0, time: now };
-        loginAttempts[user].count += 1;
-        loginAttempts[user].time = now;
-        
-        const intentosRestantes = 5 - loginAttempts[user].count;
-        if (intentosRestantes > 0) {
-            alert(`Usuario o contraseña incorrectos. Te quedan ${intentosRestantes} intento(s) antes de ser bloqueado.`);
+        // Registrar intento fallido en base de datos persistente
+        if (userOnly) {
+            let attemptCount = (userOnly.failedLoginAttempts || 0) + 1;
+            userOnly.failedLoginAttempts = attemptCount;
+            
+            const intentosRestantes = 5 - attemptCount;
+            if (intentosRestantes > 0) {
+                alert(`Contraseña incorrecta. Te quedan ${intentosRestantes} intento(s) antes de bloquear tu cuenta.`);
+                saveUserToDB(userOnly);
+            } else {
+                userOnly.accountLocked = true;
+                saveUserToDB(userOnly);
+                alert('Has excedido los 5 intentos de contraseña. Tu cuenta YA NO ES ACCESIBLE. Por favor haz clic en "¿Olvidó su contraseña?" para restablecerla obligatoriamente.');
+            }
         } else {
-            alert('Has excedido el número de intentos. Tu cuenta/IP ha sido bloqueada localmente por 15 minutos.');
+            alert('Usuario o contraseña incorrectos.');
         }
     }
 }
@@ -1020,6 +1052,8 @@ function handleResetPassword(e) {
     const matchedUser = usersDB.find(u => u.username === pendingResetUsername);
     if (matchedUser) {
         matchedUser.password = pass;
+        matchedUser.accountLocked = false;
+        matchedUser.failedLoginAttempts = 0;
         saveUserToDB(matchedUser);
         alert('Contraseña actualizada correctamente.');
         navigate('login');
