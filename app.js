@@ -81,18 +81,9 @@ function navigate(viewId) {
 }
 
 // --- Firebase Config & Global State ---
-const firebaseConfig = {
-    apiKey: "AIzaSyBHkYblplu7sOYXiTz6Jvschvc8ptvvHp0",
-    authDomain: "universal-profits-llc.firebaseapp.com",
-    projectId: "universal-profits-llc",
-    storageBucket: "universal-profits-llc.firebasestorage.app",
-    messagingSenderId: "11955098488",
-    appId: "1:11955098488:web:20f7b6ad7cbcfa105b6e8d",
-    measurementId: "G-BLD41MEYGP"
-};
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
+firebase.initializeApp(window.APP_CONFIG.firebaseConfig);
 const db = firebase.firestore();
 
 let usersDB = [];
@@ -226,10 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Seed default admins si la base de datos está vacía (solo primera vez)
         if (usersDB.length === 0) {
-            const defaultUsers = [
-                { username: "Josue10", password: "Josue1020.", isAdmin: true, firstname: "Josue", lastname: "", balance: 0, invested: 0, earnings: 0, wallet: "", recoveryWords: [], referrer: "", pendingDeposits: [] },
-                { username: "Gribel", password: "Josue1020.", isAdmin: false, firstname: "Gribel", lastname: "", balance: 0, invested: 0, earnings: 0, wallet: "", recoveryWords: ["sol", "luna", "rio", "oro", "plata"], referrer: "Josue10", pendingDeposits: [] }
-            ];
+            const defaultUsers = window.APP_CONFIG.defaultUsers || [];
             defaultUsers.forEach(u => {
                 usersDB.push(u);
                 saveUserToDB(u);
