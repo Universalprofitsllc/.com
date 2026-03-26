@@ -564,24 +564,25 @@ function updateChart(label, value) {
 }
 
 function recalculateUserFinances(matchedUser) {
-    if (matchedUser.isRecalculatedFromStart) return false;
+    // Usamos _v3 para asegurar que vuelva a ejecutarse en todos, migrando a quienes no tenían lista
+    if (matchedUser.isRecalculatedFromStart_v3) return false;
     
+    if (!matchedUser.investments && matchedUser.invested > 0) {
+        matchedUser.investments = [{ id: 'inv_old_migrated', amount: matchedUser.invested, earnings: matchedUser.earnings || 0, active: true }];
+    }
+
     let totalEarnings = 0;
-    matchedUser.investments.forEach((inv) => {
-        let invDateStr = inv.date;
-        if (!invDateStr) {
-            let ts = parseInt(inv.id.split('_')[1]);
-            if (!isNaN(ts) && ts > 1000000) invDateStr = new Date(ts).toISOString();
-            else {
-                let d = new Date();
-                d.setDate(d.getDate() - (matchedUser.realDaysElapsed || 0));
-                invDateStr = d.toISOString();
+    if (matchedUser.investments) {
+        matchedUser.investments.forEach((inv) => {
+            // Petición de audio: todos iniciaron el 17/03/2026
+            if (!inv.wasResetToMar17) {
+                inv.date = "2026-03-17T12:00:00.000-04:00"; // Hora del mediodía en DR
+                inv.wasResetToMar17 = true;
             }
-            inv.date = invDateStr;
-        }
-        
-        // Count exact weekdays from invDate to today
-        let invDate = new Date(new Date(invDateStr).toLocaleString("en-US", {timeZone: "America/Santo_Domingo"}));
+            let invDateStr = inv.date;
+            
+            // Count exact weekdays from invDate to today
+            let invDate = new Date(new Date(invDateStr).toLocaleString("en-US", {timeZone: "America/Santo_Domingo"}));
         invDate = new Date(invDate.getFullYear(), invDate.getMonth(), invDate.getDate());
         let drTime = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Santo_Domingo"}));
         let today = new Date(drTime.getFullYear(), drTime.getMonth(), drTime.getDate());
@@ -612,6 +613,7 @@ function recalculateUserFinances(matchedUser) {
         
         totalEarnings += earned;
     });
+    } // End of if (matchedUser.investments)
 
     let totalBonus = 0;
     if (matchedUser.bonusHistory) {
@@ -631,7 +633,7 @@ function recalculateUserFinances(matchedUser) {
     matchedUser.balance = matchedUser.totalHistoricalEarnings - totalWithdrawals;
     if (matchedUser.balance < 0) matchedUser.balance = 0;
     
-    matchedUser.isRecalculatedFromStart = true;
+    matchedUser.isRecalculatedFromStart_v3 = true;
     return true;
 }
 
