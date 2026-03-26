@@ -277,15 +277,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(initChart, 300);
                 if (!currentUser.isAdmin) showFloatChatBtn();
             } else {
-                navigate('login');
+                navigate('landing');
             }
         } else {
-            navigate('login');
+            navigate('landing');
         }
         initialLoadDone = true;
     }).catch(err => {
         console.error("Firebase connection error: ", err);
-        navigate('login');
+        navigate('landing');
     });
 });
 
@@ -973,9 +973,9 @@ function logout() {
         notifBadge.innerText = '0';
     }
 
-    // Volver a la vista de login
+    // Volver a la vista principal
     hideFloatChatBtn();
-    navigate('login');
+    navigate('landing');
 }
 
 
