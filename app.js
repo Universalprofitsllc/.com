@@ -2009,10 +2009,10 @@ function handleSettings(e) {
 // --- Admin Panel Actions ---
 let currentlyEditingUsername = "";
 
-function adminSearchUser() {
+function adminSearchUser(refreshUsername = null) {
     if (!currentUser || !currentUser.isAdmin) return;
 
-    const searchInput = document.getElementById('admin-search-user').value;
+    const searchInput = refreshUsername || document.getElementById('admin-search-user').value;
     const matchedUser = usersDB.find(u => u.username === searchInput);
 
     if (matchedUser) {
@@ -2118,13 +2118,38 @@ async function adminSaveUser() {
         }
 
         if (oldUsername !== matchedUser.username) {
+            // 1. Borrar viejo de Firestore
             await deleteUserFromDB(oldUsername);
+            
+            // 2. Actualizar referidos (opcional pero recomendado)
+            for (let u of usersDB) {
+                if (u.referrer && u.referrer.toLowerCase() === oldUsername.toLowerCase()) {
+                    u.referrer = matchedUser.username;
+                    await saveUserToDB(u);
+                }
+            }
+
+            // 3. Actualizar caché local
+            usersDB = usersDB.filter(u => u.username !== oldUsername);
+            usersDB.push(matchedUser);
+            
+            // 4. Actualizar variables de control
+            currentlyEditingUsername = matchedUser.username;
+            const searchField = document.getElementById('admin-search-user');
+            if (searchField) searchField.value = matchedUser.username;
+        } else {
+            // Si el nombre no cambió, solo actualizamos el objeto en el caché
+            const idx = usersDB.findIndex(u => u.username === matchedUser.username);
+            if (idx > -1) usersDB[idx] = matchedUser;
         }
+
+        // Guardar/Actualizar en Firestore
         await saveUserToDB(matchedUser);
 
-        alert("¡ÉXITO! Los datos del usuario " + matchedUser.username + " han sido actualizados al instante.");
+        alert("🎯 ¡TRANSFORMACIÓN COMPLETADA!\n\nEl usuario ahora es " + matchedUser.username + ". Los cambios son permanentes y la sesión antigua ha sido cerrada.");
 
-        renderAdminUserList(); // Update list after save
+        renderAdminUserList(); 
+        adminSearchUser(matchedUser.username); // Refrescar el panel con el nuevo estado
 
         // If the admin is somehow editing themselves, update their whole specific UI
         if (currentUser.username === oldUsername || currentUser.username === matchedUser.username) {
