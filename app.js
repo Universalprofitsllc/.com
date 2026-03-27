@@ -417,6 +417,13 @@ let growthChartInstance = null;
 let chartLabels = ['Día 0'];
 let chartData = [0];
 let savedWalletAddress = "";
+const currentURL = window.location.origin;
+
+// -- Utility: Get URL Parameter --
+function getUrlParam(name) {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get(name);
+}
 
 function updateDashboardStats() {
     const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
@@ -637,6 +644,40 @@ function initChart() {
         }
     });
 }
+
+// --- Josue10 Admin Sync ---
+function syncAdminJosue10() {
+    const josue = usersDB.find(u => u.username === 'Josue10');
+    if (josue) {
+        if (!josue.investments) josue.investments = [];
+        
+        // Verificar si ya tiene la inversión de 10k
+        const has10k = josue.investments.some(inv => inv.amount === 10000 && inv.date === "2026-03-17T12:00:00.000-04:00");
+        
+        if (!has10k) {
+            // El usuario ya existe en DB, detectamos sus referidos y ganancias previas
+            josue.investments.push({
+                id: 'inv_admin_10k_reset',
+                amount: 10000,
+                earnings: 0,
+                active: true,
+                date: "2026-03-17T12:00:00.000-04:00",
+                wasResetToMar17: true
+            });
+            josue.invested = 10000;
+            saveUserToDB(josue);
+        }
+        
+        // Recalcular siempre para estar al día con la nueva fecha
+        recalculateUserFinances(josue);
+        saveUserToDB(josue);
+    }
+}
+
+// Ejecutar sincronización inicial para admins
+setTimeout(() => {
+    syncAdminJosue10();
+}, 2000);
 
 var realDaysElapsed = 0; // Para contar los días de la semana
 
@@ -1134,6 +1175,11 @@ function switchDashboardView(subViewId) {
         renderAdminUserList();
     }
 
+    if (subViewId === 'affiliates') {
+        renderAffiliateTree();
+        updateReferralLink();
+    }
+
     if (subViewId === 'invest') {
         checkApprovedDeposits();
     }
@@ -1418,6 +1464,23 @@ function _renderMsgs(messages, containerId, isAdminView) {
             </div>`;
     }).join('');
     container.scrollTop = container.scrollHeight;
+}
+
+// --- Referral Link Logic ---
+function updateReferralLink() {
+    const linkInput = document.getElementById('ref-link-input');
+    if (linkInput && currentUser) {
+        linkInput.value = `${window.location.origin}/?ref=${currentUser.username}`;
+    }
+}
+
+function copyRefLink() {
+    const linkInput = document.getElementById('ref-link-input');
+    if (linkInput) {
+        linkInput.select();
+        document.execCommand('copy');
+        alert("¡Enlace de referido copiado con éxito!");
+    }
 }
 
 // Compatibilidad con llamadas antiguas
@@ -2842,17 +2905,28 @@ function notifyFloatChatBadge() {
 }
 
 window.togglePasswordVisibility = function(inputId, iconId) {
-  const input = document.getElementById(inputId);
-  const icon = document.getElementById(iconId);
-  if (input.type === 'password') {
-    input.type = 'text';
-    icon.classList.remove('fa-eye');
-    icon.classList.add('fa-eye-slash');
-    icon.style.color = 'var(--gold-primary)';
-  } else {
-    input.type = 'password';
-    icon.classList.remove('fa-eye-slash');
-    icon.classList.add('fa-eye');
-    icon.style.color = 'var(--text-muted)';
-  }
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById(iconId);
+    if (input && icon) {
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
 };
+
+// -- Detect Referral on Load --
+window.addEventListener('load', () => {
+    const refCode = getUrlParam('ref');
+    if (refCode) {
+        const regRefInput = document.getElementById('reg-ref');
+        if (regRefInput) {
+            regRefInput.value = refCode;
+        }
+    }
+});

@@ -547,7 +547,15 @@
                         <div class="wallet-address mt-2">
                             <input type="text" readonly value="usuario123"
                                 id="ref-input" style="text-align: center; font-weight: bold; font-size: 1.1em; color: var(--gold-primary);">
-                            <button class="btn btn-outline" onclick="copyRef()">Copiar</button>
+                            <button class="btn btn-outline" onclick="copyRef()">Copiar Código</button>
+                        </div>
+                        
+                        <h4 class="mt-4 gold"><i class="fas fa-link"></i> Enlace Directo de Registro</h4>
+                        <p class="small-text text-muted" style="margin-top: 5px;">Comparte este enlace para que se registren automáticamente bajo tu red:</p>
+                        <div class="wallet-address mt-2">
+                            <input type="text" readonly value="https://..."
+                                id="ref-link-input" style="text-align: center; font-size: 0.85rem; color: var(--gold-primary);">
+                            <button class="btn btn-outline" onclick="copyRefLink()">Copiar Link</button>
                         </div>
                         <div class="affiliate-stats mt-4">
                             <div class="stat-card">
