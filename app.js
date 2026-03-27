@@ -2033,7 +2033,7 @@ function adminSearchUser() {
     }
 }
 
-function adminSaveUser() {
+async function adminSaveUser() {
     if (!currentUser || !currentUser.isAdmin || !currentlyEditingUsername) return;
 
     const matchedUser = usersDB.find(u => u.username === currentlyEditingUsername);
@@ -2110,11 +2110,11 @@ function adminSaveUser() {
         }
 
         if (oldUsername !== matchedUser.username) {
-            deleteUserFromDB(oldUsername);
+            await deleteUserFromDB(oldUsername);
         }
-        saveUserToDB(matchedUser);
+        await saveUserToDB(matchedUser);
 
-        alert("Los datos del usuario " + matchedUser.username + " han sido actualizados y guardados en la BD.");
+        alert("¡ÉXITO! Los datos del usuario " + matchedUser.username + " han sido actualizados al instante.");
 
         renderAdminUserList(); // Update list after save
 
@@ -2134,7 +2134,7 @@ function adminSaveUser() {
     }
 }
 
-function adminDeleteUser() {
+async function adminDeleteUser() {
     if (!currentUser || !currentUser.isAdmin || !currentlyEditingUsername) return;
 
     if (currentlyEditingUsername === currentUser.username) {
@@ -2146,8 +2146,8 @@ function adminDeleteUser() {
         const index = usersDB.findIndex(u => u.username === currentlyEditingUsername);
         if (index > -1) {
             usersDB.splice(index, 1);
-            deleteUserFromDB(currentlyEditingUsername);
-            alert(`El usuario ${currentlyEditingUsername} ha sido borrado de la faz de la tierra.`);
+            await deleteUserFromDB(currentlyEditingUsername);
+            alert(`¡ELIMINADO! El usuario ${currentlyEditingUsername} ha sido borrado permanentemente.`);
             document.getElementById('admin-user-edit-section').style.display = 'none';
             document.getElementById('admin-search-user').value = "";
             currentlyEditingUsername = "";
@@ -2156,7 +2156,7 @@ function adminDeleteUser() {
     }
 }
 
-function adminResetUser() {
+async function adminResetUser() {
     if (!currentUser || !currentUser.isAdmin || !currentlyEditingUsername) return;
 
     if (confirm(`¿RESTABLECER a '${currentlyEditingUsername}'?\n\nSe mantendrá el login pero se borrará: Balance, Inversiones y Todo el Historial.`)) {
@@ -2173,8 +2173,8 @@ function adminResetUser() {
             matchedUser.lastWithdrawalTimestamp = 0;
             matchedUser.isRecalculatedFromStart_v3 = true;
 
-            saveUserToDB(matchedUser);
-            alert(`El usuario ${currentlyEditingUsername} ha sido reiniciado como nuevo.`);
+            await saveUserToDB(matchedUser);
+            alert(`¡RESTABLECIDO! El usuario ${currentlyEditingUsername} ha vuelto a su estado inicial.`);
             adminSearchUser(); // Refresh fields
         }
     }
@@ -2928,11 +2928,8 @@ window.addEventListener('load', () => {
         const regRefInput = document.getElementById('reg-ref');
         if (regRefInput) {
             regRefInput.value = refCode;
-            
-            // Forzar navegación al registro
-            setTimeout(() => {
-                navigate('register');
-            }, 100);
+            // Solo llenamos el código, dejamos que el usuario vea la landing primero
+            // y decida ir a registro el mismo.
         }
     }
 });
