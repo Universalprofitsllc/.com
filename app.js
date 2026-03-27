@@ -1470,7 +1470,8 @@ function _renderMsgs(messages, containerId, isAdminView) {
 function updateReferralLink() {
     const linkInput = document.getElementById('ref-link-input');
     if (linkInput && currentUser) {
-        linkInput.value = `${window.location.origin}/?ref=${currentUser.username}`;
+        const cleanUrl = window.location.origin + window.location.pathname;
+        linkInput.value = `${cleanUrl}?ref=${currentUser.username}`;
     }
 }
 
@@ -2927,6 +2928,8 @@ window.addEventListener('load', () => {
         const regRefInput = document.getElementById('reg-ref');
         if (regRefInput) {
             regRefInput.value = refCode;
+            // Dirigir automáticamente a la vista de registro si hay un referido
+            navigate('register');
         }
     }
 });
